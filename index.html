@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Handy — speak into any text field</title>
+<meta name="description" content="Ứng dụng speech-to-text miễn phí, mã nguồn mở, chạy ngoại tuyến.">
+<style>
+:root{--blue:#1f6bff;--bg:#faf7f2;--fg:#1d1a16;--mut:#7a7268;--acc:#f2a33a;--card:#fff;--line:#e6dfd3;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14120f;--fg:#f4eee4;--mut:#9b9286;--acc:#f2a33a;--card:#1e1b17;--line:#2f2a24;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14120f;--fg:#f4eee4;--mut:#9b9286;--acc:#f2a33a;--card:#1e1b17;--line:#2f2a24;color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--blue:#4da3ff}}:root[data-theme="dark"]{--blue:#4da3ff}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow-x:hidden;line-height:1.6}
+nav{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:calc(16px + env(safe-area-inset-top,0px)) 5vw 16px;background:color-mix(in srgb,var(--bg) 70%,transparent);backdrop-filter:blur(10px)}
+nav a{color:var(--fg);text-decoration:none;margin-left:20px;font-size:14px;position:relative}
+nav a::after{content:"";position:absolute;left:0;bottom:-3px;height:1px;width:0;background:var(--acc);transition:width .3s}
+nav a:hover::after{width:100%}
+#orb{position:fixed;inset:0;z-index:0;pointer-events:none}
+section{position:relative;z-index:1}
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 5vw}
+.hero h1{font-size:clamp(34px,7vw,88px);letter-spacing:-.04em;line-height:1.05;font-weight:600}
+.hero h1 span{display:inline-block;will-change:transform}
+.hero p{color:var(--mut);margin:18px 0 32px}
+.btn{display:inline-block;padding:14px 28px;border-radius:999px;background:var(--fg);color:var(--bg);text-decoration:none;font:inherit;font-size:14px;border:0;cursor:pointer;transition:transform .2s ease,box-shadow .3s}
+.btn:hover{box-shadow:0 10px 30px -8px var(--acc)}
+.btn:active{transform:scale(.94)!important}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);margin-left:10px}
+.hint{position:absolute;bottom:28px;font-size:12px;color:var(--mut);animation:b 2s infinite}
+@keyframes b{50%{transform:translateY(6px)}}
+/* scroll-driven pillars */
+.pin{height:400vh}
+.stick{position:sticky;top:0;height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pillar{position:absolute;max-width:960px;padding:0 6vw;text-align:center;opacity:0;will-change:transform,opacity}
+.pillar h2{font-size:clamp(44px,10vw,140px);letter-spacing:-.05em;line-height:1.05;perspective:900px}
+.pillar h2 .w{display:inline-block;white-space:nowrap}
+.pillar h2 b{display:inline-block;font-weight:700;will-change:transform,opacity;opacity:0;background:linear-gradient(180deg,#ffc266,var(--acc) 55%,#e0761f);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pillar p{color:var(--mut);margin-top:16px}
+.bar{position:absolute;left:5vw;top:50%;width:2px;height:120px;background:var(--line);transform:translateY(-50%)}
+.bar i{display:block;width:100%;height:0;background:var(--acc)}
+/* demo */
+.demo{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12vh 5vw;gap:24px}
+.reveal{opacity:0;transform:translateY(40px) scale(.97);transition:opacity .9s,transform .9s cubic-bezier(.2,.8,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.win{width:min(640px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 60px -30px rgba(0,0,0,.35);overflow:hidden}
+.win .top{display:flex;gap:6px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.win .top i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.win .top i:first-child{background:#ff6b5e}.win .top i:nth-child(2){background:#f5c34a}.win .top i:nth-child(3){background:#58c26b}
+#field{min-height:120px;padding:18px;font-size:15px}
+#field::after{content:"▍";color:var(--acc);animation:c 1s steps(1) infinite}
+@keyframes c{50%{opacity:0}}
+.mic{width:96px;height:96px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;font-size:12px;cursor:pointer;position:relative;transition:transform .2s,background .3s;user-select:none;touch-action:none}
+.mic.on{background:var(--acc);color:#1d1a16;transform:scale(1.12)}
+.mic.on::before{content:"";position:absolute;inset:-12px;border-radius:50%;border:2px solid var(--acc);animation:p 1s infinite}
+@keyframes p{to{transform:scale(1.4);opacity:0}}
+.wave{display:flex;gap:4px;height:28px;align-items:center}
+.wave i{width:4px;height:4px;background:var(--acc);border-radius:2px;transition:height .1s}
+/* drag cards */
+.pin2{height:360vh}
+.board{position:relative;width:min(1000px,100%);padding:0 5vw}
+.board h2{text-align:center;font-size:clamp(24px,4vw,40px);letter-spacing:-.03em}
+.board small{display:block;text-align:center;color:var(--mut)}
+.rows{display:flex;flex-direction:column;gap:3vh;margin-top:5vh;align-items:center}
+.row{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;opacity:0;will-change:transform,opacity}
+.chip{position:relative;padding:22px 36px;background:var(--card);border:2px solid color-mix(in srgb,var(--blue) 35%,var(--line));border-radius:18px;cursor:grab;user-select:none;touch-action:none;box-shadow:0 14px 34px -16px color-mix(in srgb,var(--blue) 60%,transparent);transition:box-shadow .2s,border-color .2s;font-size:clamp(20px,3.4vw,38px);font-weight:700;letter-spacing:-.02em;color:var(--blue);transform:translate(var(--dx,0px),var(--dy,0px)) rotate(var(--r,0deg))}
+.chip:hover{border-color:var(--blue)}
+.chip:active{cursor:grabbing;box-shadow:0 28px 44px -14px color-mix(in srgb,var(--blue) 70%,transparent)}
+.dl{min-height:90vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:12vh 5vw;text-align:center}
+.dl h2,.sp h2{font-size:clamp(30px,6vw,72px);letter-spacing:-.04em;line-height:1.05}
+.dl>p{color:var(--mut)}
+.cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;perspective:1000px}
+.tilt{width:230px;padding:36px 24px;background:var(--card);border:1px solid var(--line);border-radius:20px;color:var(--fg);text-decoration:none;transition:transform .15s ease-out,box-shadow .3s;transform-style:preserve-3d;position:relative;overflow:hidden}
+.tilt:hover{box-shadow:0 30px 50px -24px color-mix(in srgb,var(--acc) 70%,transparent)}
+.tilt::after{content:"";position:absolute;inset:0;background:radial-gradient(240px circle at var(--gx,50%) var(--gy,0%),color-mix(in srgb,var(--acc) 28%,transparent),transparent 60%);opacity:0;transition:opacity .3s}
+.tilt:hover::after{opacity:1}
+.tilt b{display:block;font-size:22px;transform:translateZ(40px)}
+.tilt span{color:var(--mut);font-size:12px;transform:translateZ(20px);display:block}
+.sp{padding:10vh 0;text-align:center;overflow:hidden}
+.sp p{color:var(--mut);margin:10px 0 34px}
+.track{display:flex;gap:64px;width:max-content;animation:mq 22s linear infinite;font-size:clamp(22px,3.5vw,40px);font-weight:600;letter-spacing:-.03em}
+.track a{color:var(--mut);text-decoration:none;transition:color .3s}
+.track a:hover{color:var(--acc)}
+.sp:hover .track{animation-play-state:paused}
+@keyframes mq{to{transform:translateX(-50%)}}
+footer{position:relative;z-index:1;text-align:center;padding:40px 5vw calc(40px + env(safe-area-inset-bottom,0px));color:var(--mut);font-size:12px}
+footer a{color:var(--mut);margin:0 6px}footer a:hover{color:var(--acc)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<nav><b>/ handy</b><div><a href="#download">download</a><a href="#demo">demo</a><a href="#pin">about</a><a href="https://handy.computer/docs" target="_blank" rel="noopener">docs</a><a href="https://github.com/cjpais/Handy" target="_blank" rel="noopener">github</a></div></nav>
+<canvas id="orb"></canvas>
+
+<section class="hero">
+  <h1><span data-s="-.4">speak</span> <span data-s=".3">into</span><br><span data-s="-.2">any</span> <span data-s=".5">text</span> <span data-s="-.3">field</span></h1>
+  <p>ứng dụng speech-to-text miễn phí, mã nguồn mở, chạy ngoại tuyến</p>
+  <div><a class="btn mag" href="#download">download handy</a><a class="btn ghost mag" href="#demo">thử demo</a></div>
+  <div class="hint">↓ cuộn · di chuột · giữ chuột để khối cầu "nghe"</div>
+</section>
+
+<section class="pin" id="pin">
+  <div class="stick">
+    <div class="bar"><i id="prog"></i></div>
+    <div class="pillar"><h2>Free</h2><p>Công cụ hỗ trợ tiếp cận thuộc về mọi người, không phải sau paywall.</p></div>
+    <div class="pillar"><h2>Open Source</h2><p>Cùng nhau xây tiếp. Mở rộng Handy theo cách của bạn.</p></div>
+    <div class="pillar"><h2>Private</h2><p>Giọng nói ở lại trên máy bạn. Không gửi âm thanh lên cloud.</p></div>
+    <div class="pillar"><h2>Simple</h2><p>Một công cụ, một việc: chuyển lời nói thành văn bản.</p></div>
+  </div>
+</section>
+
+<section class="demo" id="demo">
+  <h2 class="reveal" style="font-size:clamp(24px,4vw,40px);letter-spacing:-.03em">giữ nút (hoặc phím Space) và nói</h2>
+  <div class="win reveal"><div class="top"><i></i><i></i><i></i></div><div id="field"></div></div>
+  <div class="wave reveal" id="wave"></div>
+  <button class="mic reveal" id="mic">giữ để nói</button>
+</section>
+
+<section class="pin2" id="board">
+  <div class="stick" style="flex-direction:column"><div class="board"><h2>kéo xuống, từng hàng sẽ hiện ra</h2><small>bạn vẫn có thể kéo thả từng thẻ</small><div class="rows" id="rows"></div></div></div>
+</section>
+<section class="dl" id="download">
+  <h2 class="reveal">let handy give you a hand</h2>
+  <p class="reveal">miễn phí · mã nguồn mở · chạy hoàn toàn ngoại tuyến</p>
+  <div class="cards reveal">
+    <a class="tilt" href="https://handy.computer/download" target="_blank" rel="noopener"><b>macOS</b><span>Apple Silicon &amp; Intel</span></a>
+    <a class="tilt" href="https://handy.computer/download" target="_blank" rel="noopener"><b>Windows</b><span>x64</span></a>
+    <a class="tilt" href="https://handy.computer/download" target="_blank" rel="noopener"><b>Linux</b><span>các bản phân phối phổ biến</span></a>
+  </div>
+</section>
+<section class="sp">
+  <h2 class="reveal">sponsors</h2><p class="reveal">những nhà tài trợ giúp Handy luôn miễn phí và mã nguồn mở</p>
+  <div class="track">
+    <a href="https://wordcab.com" target="_blank" rel="noopener">Wordcab</a><a href="https://github.com/epicenter-so/epicenter" target="_blank" rel="noopener">Epicenter</a><a href="https://boltai.com" target="_blank" rel="noopener">Bolt AI</a><a href="https://cantydigital.com.au/" target="_blank" rel="noopener">Canty Digital</a>
+    <a href="https://wordcab.com" target="_blank" rel="noopener">Wordcab</a><a href="https://github.com/epicenter-so/epicenter" target="_blank" rel="noopener">Epicenter</a><a href="https://boltai.com" target="_blank" rel="noopener">Bolt AI</a><a href="https://cantydigital.com.au/" target="_blank" rel="noopener">Canty Digital</a>
+  </div>
+</section>
+<footer>
+  <a href="https://handy.computer/privacy" target="_blank" rel="noopener">privacy</a>·<a href="https://github.com/cjpais/Handy" target="_blank" rel="noopener">github</a>·<a href="mailto:contact@handy.computer">contact</a>
+  <p style="margin-top:10px">Trang demo lấy cảm hứng từ Handy của CJ Pais &amp; contributors.</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(()=>{
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let talking=false, mx=0, my=0, amp=0, sy=0, lastSy=0, sv=0;
+const clamp=(v,a,b)=>Math.min(Math.max(v,a),b), st=[], letters=[];
+$$('.pillar').forEach((el,pi)=>{const h=el.querySelector('h2'),L=[];const words=h.textContent.split(' ');h.textContent='';
+  words.forEach((w,wi)=>{const ws=document.createElement('span');ws.className='w';[...w].forEach(ch=>{const b=document.createElement('b');b.textContent=ch;ws.appendChild(b);L.push(b)});h.appendChild(ws);if(wi<words.length-1)h.appendChild(document.createTextNode(' '))});
+  letters[pi]=L;});
+/* ---------- 3D ORB ---------- */
+const cv=$('#orb'), R=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+const S=new THREE.Scene(), C=new THREE.PerspectiveCamera(45,1,.1,100); C.position.z=5;
+const geo=new THREE.IcosahedronGeometry(1.3,4), base=geo.attributes.position.array.slice();
+const mat=new THREE.MeshBasicMaterial({color:0xf2a33a,wireframe:true,transparent:true,opacity:.55});
+const orb=new THREE.Mesh(geo,mat); S.add(orb);
+const core=new THREE.Mesh(new THREE.SphereGeometry(1.05,32,32),new THREE.MeshBasicMaterial({color:0xf2a33a,transparent:true,opacity:.08}));
+orb.add(core);
+const ring=new THREE.Mesh(new THREE.TorusGeometry(2,.008,8,120),new THREE.MeshBasicMaterial({color:0xf2a33a,transparent:true,opacity:.5}));
+ring.rotation.x=1.2; S.add(ring);
+const pg=new THREE.BufferGeometry(), pn=300, pp=new Float32Array(pn*3);
+for(let i=0;i<pn;i++){const r=2.4+Math.random()*2,a=Math.random()*6.28,b=Math.acos(2*Math.random()-1);pp.set([r*Math.sin(b)*Math.cos(a),r*Math.sin(b)*Math.sin(a),r*Math.cos(b)],i*3)}
+pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+const pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xf2a33a,size:.03,transparent:true,opacity:.7})); S.add(pts);
+function size(){const w=innerWidth,h=innerHeight;R.setSize(w,h,false);C.aspect=w/h;C.updateProjectionMatrix()}
+addEventListener('resize',size);size();
+addEventListener('pointermove',e=>{mx=e.clientX/innerWidth*2-1;my=e.clientY/innerHeight*2-1});
+const t0=performance.now();
+function loop(){
+  const t=(performance.now()-t0)/1000;
+  const vel=Math.abs(sy-lastSy);lastSy=sy;sv+=(Math.min(vel*.012,.45)-sv)*.1;   // tốc độ cuộn làm khối cầu "dậy sóng"
+  amp+=((talking?.55:.12)+sv-amp)*.08;
+  const p=geo.attributes.position.array;
+  for(let i=0;i<p.length;i+=3){
+    const x=base[i],y=base[i+1],z=base[i+2];
+    const n=Math.sin(x*2.2+t*(talking?4:1.2))*Math.cos(y*2.4+t*1.5)*Math.sin(z*2+t);
+    const k=1+n*amp; p[i]=x*k;p[i+1]=y*k;p[i+2]=z*k;
+  }
+  geo.attributes.position.needsUpdate=true;
+  orb.rotation.y+=.003+amp*.02; orb.rotation.x+=(my*.5-orb.rotation.x)*.03;
+  ring.rotation.z+=.004; ring.rotation.y=mx*.5; pts.rotation.y-=.0008; pts.rotation.x=sy*.0004;
+  // scroll: orb drifts & scales with page progress
+  const prog=Math.min(sy/(document.body.scrollHeight-innerHeight||1),1);
+  const sc=1+Math.sin(prog*Math.PI*4)*.25; orb.scale.setScalar(sc); ring.scale.setScalar(sc);
+  const ox=Math.sin(prog*Math.PI*3)*(innerWidth>700?1.8:0.6);
+  orb.position.x+=(ox+mx*.4-orb.position.x)*.05; ring.position.x=orb.position.x;
+  orb.position.y+=(-my*.3-orb.position.y)*.05;
+  mat.opacity=.35+amp*.6;
+  // chữ cảnh 2: bay vào theo quỹ đạo như hạt quanh khối cầu, gợn sóng cùng biên độ với bề mặt khối cầu
+  letters.forEach((L,i)=>{const s=st[i];if(!s||s.a<=.001)return;const n=L.length;
+    L.forEach((b,j)=>{const l=clamp(s.a*2.4-(j/n)*1.2,0,1),k=1-l,dir=s.d<0?1:-1,ang=j/n*6.28+t*.5,
+      wave=Math.sin(t*2.2+j*.7)*(4+amp*50);
+      b.style.opacity=l;
+      b.style.transform=`translate3d(${Math.cos(ang)*k*110}px,${dir*k*150+wave}px,${Math.sin(ang)*k*-260}px) rotateY(${k*dir*140}deg) rotateZ(${(j%2?1:-1)*k*28}deg) scale(${.45+.55*l+amp*.12*Math.sin(t*3+j)})`;});});
+  R.render(S,C); requestAnimationFrame(loop);
+}
+loop();
+/* ---------- SCROLL ---------- */
+const spans=$$('.hero h1 span'), pillars=$$('.pillar'), pin=$('#pin'), prog=$('#prog');
+function onScroll(){
+  sy=scrollY;
+  spans.forEach(s=>s.style.transform=`translateY(${sy*parseFloat(s.dataset.s)}px)`);       // parallax chữ
+  const r=pin.getBoundingClientRect(), p=Math.min(Math.max(-r.top/(r.height-innerHeight),0),1);
+  prog.style.height=p*100+'%';
+  pillars.forEach((el,i)=>{
+    const d=p*pillars.length-i-.5;           // -0.5..0.5 là vùng hiển thị
+    const a=Math.min(1,Math.max(0,1-Math.abs(d)*2)*1.7);
+    st[i]={d,a}; el.style.opacity=a;
+    el.querySelector('p').style.transform=`translateY(${d*70}px)`;
+  });
+  rowsScroll();
+}
+var rowEls=[];
+function rowsScroll(){ if(!rowEls||!rowEls.length)return;
+  const r=$('#board').getBoundingClientRect(), p=clamp(-r.top/(r.height-innerHeight),0,1);
+  rowEls.forEach((row,i)=>{const q=clamp((p-(.05+i*.26))/.2,0,1),e=1-Math.pow(1-q,3),side=i%2?1:-1;   // từng hàng trượt ngang vào
+    row.style.opacity=e;
+    row.style.transform=`translateX(${side*(1-e)*70}vw) scale(${.85+.15*e})`;
+    row.style.filter=`blur(${(1-e)*8}px)`;});
+}
+addEventListener('scroll',onScroll,{passive:true});onScroll();
+const io=new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting&&e.target.classList.add('in')),{threshold:.2});
+$$('.reveal').forEach(el=>io.observe(el));
+/* ---------- INTERACTIVE ---------- */
+// nút từ tính
+$$('.mag').forEach(b=>{
+  b.addEventListener('pointermove',e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${(e.clientX-r.left-r.width/2)*.25}px,${(e.clientY-r.top-r.height/2)*.35}px)`});
+  b.addEventListener('pointerleave',()=>b.style.transform='');
+});
+// demo voice -> text
+const mic=$('#mic'), field=$('#field'), wave=$('#wave');
+for(let i=0;i<24;i++)wave.appendChild(document.createElement('i'));
+const bars=[...wave.children];
+const phrases=['Handy sẽ dán những gì bạn nói vào bất kỳ ô nhập liệu nào.','Giọng nói của bạn ở lại trên máy tính của bạn.','Nhấn phím tắt, nói, rồi thả ra.'];
+let pi=0,ti=null,wi=null,txt='';
+function start(){ if(talking)return; talking=true; mic.classList.add('on'); mic.textContent='đang nghe…';
+  const s=phrases[pi++%phrases.length]; let n=0; txt='';
+  ti=setInterval(()=>{ if(n<s.length){txt+=s[n++];field.textContent=txt} },45);
+  wi=setInterval(()=>bars.forEach(b=>b.style.height=4+Math.random()*24+'px'),90);
+}
+function stop(){ if(!talking)return; talking=false; mic.classList.remove('on'); mic.textContent='giữ để nói';
+  clearInterval(ti);clearInterval(wi);bars.forEach(b=>b.style.height='4px');
+}
+mic.addEventListener('pointerdown',start);
+addEventListener('pointerup',stop);
+addEventListener('keydown',e=>{if(e.code==='Space'&&!e.repeat&&document.activeElement===document.body){e.preventDefault();start()}});
+addEventListener('keyup',e=>{if(e.code==='Space')stop()});
+// thẻ kéo thả: 3 hàng, mỗi hàng hiện theo cuộn; kéo bằng CSS variables + quán tính
+const board=$('.board'), rowsEl=$('#rows'), labels=['🎙 push-to-talk','🔒 100% offline','⚡ Whisper local','🧩 open source','🌍 đa nền tảng','💛 miễn phí'];
+for(let r=0;r<3;r++){const row=document.createElement('div');row.className='row';rowsEl.appendChild(row);rowEls.push(row)}
+labels.forEach((l,i)=>{
+  const c=document.createElement('div'); c.className='chip'; c.textContent=l; c.style.setProperty('--r',(i%2?1:-1)*(1+i%3)+'deg');
+  let dx=0,dy=0,vx=0,vy=0,px=0,py=0,drag=false,raf;
+  const set=()=>{c.style.setProperty('--dx',dx+'px');c.style.setProperty('--dy',dy+'px')};
+  const fit=()=>{const b=board.getBoundingClientRect(),q=c.getBoundingClientRect();let ox=0,oy=0;
+    if(q.left<b.left)ox=b.left-q.left; else if(q.right>b.right)ox=b.right-q.right;
+    if(q.top<b.top)oy=b.top-q.top; else if(q.bottom>b.bottom)oy=b.bottom-q.bottom;
+    dx+=ox;dy+=oy;return [ox,oy]};
+  c.addEventListener('pointerdown',e=>{drag=true;c.setPointerCapture(e.pointerId);px=e.clientX;py=e.clientY;cancelAnimationFrame(raf);c.parentNode.style.zIndex=9});
+  c.addEventListener('pointermove',e=>{if(!drag)return;vx=e.clientX-px;vy=e.clientY-py;px=e.clientX;py=e.clientY;dx+=vx;dy+=vy;
+    c.style.setProperty('--r',clamp(vx*.8,-20,20)+'deg');set();fit();set()});
+  c.addEventListener('pointerup',()=>{drag=false;c.parentNode.style.zIndex='';(function f(){vx*=.93;vy*=.93;dx+=vx;dy+=vy;
+    const [ox,oy]=fit(); if(ox)vx*=-.6; if(oy)vy*=-.6; set();
+    if(Math.abs(vx)+Math.abs(vy)>.2)raf=requestAnimationFrame(f)})()});
+  rowEls[Math.floor(i/2)].appendChild(c);
+});
+// thẻ download: nghiêng 3D theo chuột + vệt sáng
+$$('.tilt').forEach(c=>{
+  c.addEventListener('pointermove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+    c.style.transform=`rotateY(${(x-.5)*22}deg) rotateX(${(.5-y)*22}deg) translateY(-6px)`;c.style.setProperty('--gx',x*100+'%');c.style.setProperty('--gy',y*100+'%')});
+  c.addEventListener('pointerleave',()=>c.style.transform='');
+});
+onScroll();
+})();
+</script>
+</body>
+</html>
